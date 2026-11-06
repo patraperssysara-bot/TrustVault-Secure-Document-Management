@@ -1,0 +1,24 @@
+# Python cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Virtual environment
+venv/
+.env/
+
+# Secret environment files
+.env
+.env.*
+
+# Database files
+instance/
+*.db
+*.sqlite
+*.sqlite3
+
+# Uploaded private documents
+private_uploads/
+
+# IDE files
+.vscode/

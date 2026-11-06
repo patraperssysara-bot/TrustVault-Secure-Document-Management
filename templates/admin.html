@@ -1,0 +1,163 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TrustVault - Admin Dashboard</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f2f4f8;
+            margin: 0;
+        }
+
+        header {
+            background: #172554;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .container {
+            padding: 30px;
+        }
+
+        .card {
+            background: white;
+            padding: 25px;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px #ddd;
+        }
+
+        .integrity-valid {
+            color: green;
+            font-weight: bold;
+        }
+
+        .integrity-failed {
+            color: red;
+            font-weight: bold;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th, td {
+            padding: 12px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+
+        th {
+            background: #172554;
+            color: white;
+        }
+
+        tr:nth-child(even) {
+            background: #f2f4f8;
+        }
+
+        a, button {
+            display: inline-block;
+            padding: 10px 18px;
+            background: #2563eb;
+            color: white;
+            text-decoration: none;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .empty {
+            color: #666;
+            padding: 15px;
+        }
+    </style>
+</head>
+
+<body>
+
+<header>
+    <h1>TrustVault Admin Dashboard</h1>
+    <p>System Monitoring and Security Management</p>
+</header>
+
+<div class="container">
+
+    <div class="card">
+        <h2>Welcome, Administrator!</h2>
+        <p>Monitor document activities and user actions.</p>
+    </div>
+
+    <!-- Audit Integrity Status -->
+    <div class="card">
+        <h2>Audit Integrity Status</h2>
+
+        {% if integrity_valid %}
+            <h3 class="integrity-valid">
+                VALID - Audit Hash Chain Verified
+            </h3>
+        {% else %}
+            <h3 class="integrity-failed">
+                FAILED - Audit Integrity Check Failed
+            </h3>
+        {% endif %}
+
+        <p>
+            Verified Audit Records: {{ verified_count }}
+        </p>
+    </div>
+
+    <div class="card">
+        <h2>Audit Activity Logs</h2>
+
+        {% if logs %}
+
+        <table>
+            <tr>
+                <th>Log ID</th>
+                <th>User ID</th>
+                <th>Activity</th>
+                <th>Document ID</th>
+                <th>Date and Time</th>
+            </tr>
+
+            {% for log in logs %}
+            <tr>
+                <td>{{ log.id }}</td>
+                <td>{{ log.user_id }}</td>
+                <td>{{ log.action }}</td>
+                <td>{{ log.document_id or 'N/A' }}</td>
+                <td>{{ log.timestamp }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+
+        {% else %}
+
+        <p class="empty">No activity logs available yet.</p>
+
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h2>Navigation</h2>
+
+        <a href="{{ url_for('dashboard') }}">Back to Dashboard</a>
+        <a href="{{ url_for('documents') }}">View Documents</a>
+
+        <form method="POST" action="{{ url_for('logout') }}">
+            <input type="hidden" name="csrf_token"
+                   value="{{ csrf_token() }}">
+            <button type="submit">Logout</button>
+        </form>
+    </div>
+
+</div>
+
+</body>
+</html>
