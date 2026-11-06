@@ -1,51 +1,57 @@
-# TrustVault – Secure Document Management System
+## Installation and Setup
 
-## Project Overview
-TrustVault is a secure document management system
-developed using Python and Flask. It allows users to
-upload, manage, share, view and download documents
-with role-based access control.
+### 1. Clone the repository
 
-## Key Features
-- User login and registration
-- Role-based access control
-- Secure document upload and download
-- Document sharing with read-only permissions
-- Immediate permission revocation
-- Document search and filtering
-- Audit logging with hash-chain verification
-- Admin dashboard
-- Security testing using Pytest
+```bash
+git clone https://github.com/patraperssysara-bot/TrustVault-Secure-Document-Management.git
+```
 
-## Technologies Used
-- Python
-- Flask
-- Flask-SQLAlchemy
-- SQLite
-- HTML and CSS
-- Pytest
-- Git and GitHub
+### 2. Install the required dependencies
 
-## Installation
+```bash
+pip install -r requirements.txt
+```
 
-1. Clone the repository.
-2. Install the required packages:
+### 3. Configure the SECRET_KEY environment variable
 
-   pip install -r requirements.txt
+Generate a secure secret key locally and set it as an environment variable. Do not upload your actual secret key to GitHub.
 
-3. Configure the SECRET_KEY environment variable.
-4. Run the application:
+For Git Bash:
 
-   python app.py
+```bash
+export SECRET_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+```
 
-5. Open http://127.0.0.1:5000 in your browser.
+### 4. Run the application
+
+```bash
+python app.py
+```
+
+### 5. Open the application
+
+Visit the following address in your browser:
+
+`http://127.0.0.1:5000`
 
 ## Security Testing
 
-Run the tests using:
+Run the security tests using:
 
+```bash
 python -m pytest test_security.py -v
+```
+
+**Test Result:** 8 security tests passed.
+
+The tests cover authentication, role-based access, document permissions, permission revocation, and audit-log integrity.
+
+## Additional Security Feature
+
+**Suspicious Activity Monitoring**
+
+TrustVault includes monitoring for repeated failed login attempts. Three or more failed login attempts trigger a suspicious activity alert.
 
 ## Project Purpose
-To provide secure document storage, controlled
-document sharing and audit tracking.
+
+To provide secure document storage, controlled document sharing, role-based access permissions, suspicious activity monitoring, and tamper-evident audit tracking.
