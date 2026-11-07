@@ -55,3 +55,9 @@ TrustVault includes monitoring for repeated failed login attempts. Three or more
 ## Project Purpose
 
 To provide secure document storage, controlled document sharing, role-based access permissions, suspicious activity monitoring, and tamper-evident audit tracking.
+
+## Project Screenshots
+
+Below are the screenshots of the TrustVault application.
+
+![TrustVault Project Screenshots](screenshots/project%20screenshots.png)
