@@ -61,3 +61,9 @@ To provide secure document storage, controlled document sharing, role-based acce
 Below are the screenshots of the TrustVault application.
 
 ![TrustVault Project Screenshots](screenshots/project%20screenshots.png)
+
+## Live Demo
+
+**Deployed Application:** https://trustvault-secure-document-management-1.onrender.com
+
+TrustVault is deployed on Render. You can access the live application using the link above.s
