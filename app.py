@@ -905,20 +905,13 @@ def file_too_large(error):
 # --------------------------------------------------
 # CREATE DATABASE AND START APPLICATION
 # --------------------------------------------------
-
 with app.app_context():
-    db.create_all()
-
-
-if __name__ == '__main__':
-    app.run(debug=with app.app_context():
     db.create_all()
 
     admin_username = os.environ.get('ADMIN_USERNAME')
     admin_password = os.environ.get('ADMIN_PASSWORD')
 
     if admin_username and admin_password:
-
         existing_admin = User.query.filter_by(
             username=admin_username
         ).first()
@@ -929,10 +922,8 @@ if __name__ == '__main__':
                 password=generate_password_hash(admin_password),
                 role='admin'
             )
-
             db.session.add(admin)
             db.session.commit()
-
             app.logger.info("Initial admin account created.")
 
         elif existing_admin.role != 'admin':
@@ -942,4 +933,4 @@ if __name__ == '__main__':
 
 
 if __name__ == '__main__':
-    app.run(debug=False)False)
+    app.run(debug=False)
