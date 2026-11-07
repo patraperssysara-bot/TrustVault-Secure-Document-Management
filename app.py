@@ -1,3 +1,4 @@
+
 import os
 import hashlib
 import json
@@ -22,8 +23,7 @@ from database import db, User, Document, Permission, AuditLog
 # --------------------------------------------------
 
 app = Flask(__name__)
-
-# Secure SECRET_KEY from environment variable
+app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 
 if not app.config['SECRET_KEY']:
@@ -84,7 +84,6 @@ def record_activity(user_id, action, document_id=None):
 
     try:
 
-        # Find the latest successfully hashed audit record
         previous_log = AuditLog.query.filter(
             AuditLog.entry_hash.isnot(None)
         ).order_by(
@@ -96,7 +95,6 @@ def record_activity(user_id, action, document_id=None):
         else:
             previous_hash = 'GENESIS'
 
-        # Prepare the new audit record
         log = AuditLog(
             user_id=user_id,
             action=action,
@@ -105,11 +103,8 @@ def record_activity(user_id, action, document_id=None):
         )
 
         db.session.add(log)
-
-        # Generate ID and timestamp before hashing
         db.session.flush()
 
-        # Generate the current record's hash
         log.entry_hash = generate_audit_hash(
             log,
             previous_hash
@@ -141,7 +136,7 @@ def login_required(function):
 
         if 'user_id' not in session:
 
-            flash('Please log in first.')
+            flash('Please log in first.', 'error')
 
             return redirect(url_for('login'))
 
@@ -210,11 +205,11 @@ def register():
         role = request.form.get('role', '').lower()
 
         if not username or not password:
-            flash('Please enter username and password.')
+            flash('Please enter username and password.', 'error')
             return redirect(url_for('register'))
 
         if role not in ['owner', 'viewer']:
-            flash('Please select a valid role.')
+            flash('Please select a valid role.', 'error')
             return redirect(url_for('register'))
 
         existing_user = User.query.filter_by(
@@ -222,7 +217,7 @@ def register():
         ).first()
 
         if existing_user:
-            flash('Username already exists.')
+            flash('Username already exists.', 'error')
             return redirect(url_for('register'))
 
         new_user = User(
@@ -234,7 +229,10 @@ def register():
         db.session.add(new_user)
         db.session.commit()
 
-        flash('Registration successful. Please log in.')
+        flash(
+            'Registration successful. Please log in.',
+            'success'
+        )
 
         return redirect(url_for('login'))
 
@@ -247,6 +245,7 @@ def register():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    print("NEW LOGIN ROUTE IS RUNNING", flush=True)
 
     if request.method == 'POST':
 
@@ -257,6 +256,7 @@ def login():
             username=username
         ).first()
 
+        # CHECK LOGIN CREDENTIALS
         if user and check_password_hash(user.password, password):
 
             session.clear()
@@ -270,10 +270,17 @@ def login():
                 'User logged in'
             )
 
+            # SUCCESS MESSAGE
+            flash(
+                f'Successfully logged in to your account, {user.username}!',
+                'success'
+            )
+
             return redirect(url_for('dashboard'))
 
         else:
 
+            # RECORD FAILED LOGIN ATTEMPT
             failed_action = (
                 f'Failed login attempt for username: {username}'
             )
@@ -290,6 +297,7 @@ def login():
                 AuditLog.timestamp >= cutoff_time
             ).count()
 
+            # SUSPICIOUS ACTIVITY ALERT
             if failed_count == 3:
 
                 record_activity(
@@ -297,7 +305,11 @@ def login():
                     f'SUSPICIOUS ACTIVITY: 3 failed login attempts within 10 minutes for username: {username}'
                 )
 
-            flash('Invalid username or password.')
+            # ERROR MESSAGE
+            flash(
+                'Incorrect username or password. Please try again.',
+                'error'
+            )
 
     return render_template('login.html')
 
@@ -315,6 +327,8 @@ def dashboard():
     if not user:
 
         session.clear()
+
+        flash('Your session has expired. Please log in again.', 'error')
 
         return redirect(url_for('login'))
 
@@ -394,7 +408,7 @@ def documents():
 
         except ValueError:
 
-            flash('Invalid date format. Please select a valid date.')
+            flash('Invalid date format. Please select a valid date.', 'error')
 
     user_documents = document_query.order_by(
         Document.id.desc()
@@ -447,21 +461,21 @@ def upload():
     category = request.form.get('category', '').strip()
 
     if not uploaded_file or uploaded_file.filename == '':
-        flash('Please select a document.')
+        flash('Please select a document.', 'error')
         return redirect(url_for('documents'))
 
     if not allowed_file(uploaded_file.filename):
-        flash('File type not allowed.')
+        flash('File type not allowed.', 'error')
         return redirect(url_for('documents'))
 
     if not category:
-        flash('Please enter a document category.')
+        flash('Please enter a document category.', 'error')
         return redirect(url_for('documents'))
 
     filename = secure_filename(uploaded_file.filename)
 
     if not filename:
-        flash('Invalid filename.')
+        flash('Invalid filename.', 'error')
         return redirect(url_for('documents'))
 
     extension = filename.rsplit('.', 1)[1].lower()
@@ -492,7 +506,7 @@ def upload():
             document.id
         )
 
-        flash('Document uploaded successfully!')
+        flash('Document uploaded successfully!', 'success')
 
     except Exception:
 
@@ -500,7 +514,7 @@ def upload():
 
         app.logger.exception('Document upload failed')
 
-        flash('Document upload failed. Please try again.')
+        flash('Document upload failed. Please try again.', 'error')
 
     return redirect(url_for('documents'))
 
@@ -609,7 +623,8 @@ def view_document(document_id):
     if extension != 'pdf':
 
         flash(
-            'Browser viewing is currently available for PDF files only.'
+            'Browser viewing is currently available for PDF files only.',
+            'error'
         )
 
         return redirect(url_for('documents'))
@@ -665,7 +680,7 @@ def share_document(document_id):
 
     if not username or access_type not in ['read', 'edit']:
 
-        flash('Please enter a valid username and permission.')
+        flash('Please enter a valid username and permission.', 'error')
 
         return redirect(url_for('documents'))
 
@@ -675,19 +690,19 @@ def share_document(document_id):
 
     if not target_user:
 
-        flash('User not found.')
+        flash('User not found.', 'error')
 
         return redirect(url_for('documents'))
 
     if target_user.role != 'viewer':
 
-        flash('You can share documents only with Viewer accounts.')
+        flash('You can share documents only with Viewer accounts.', 'error')
 
         return redirect(url_for('documents'))
 
     if target_user.id == user_id:
 
-        flash('You cannot share a document with yourself.')
+        flash('You cannot share a document with yourself.', 'error')
 
         return redirect(url_for('documents'))
 
@@ -718,7 +733,7 @@ def share_document(document_id):
         document_id
     )
 
-    flash('Document shared successfully!')
+    flash('Document shared successfully!', 'success')
 
     return redirect(url_for('documents'))
 
@@ -758,11 +773,11 @@ def revoke_access(document_id, target_user_id):
             document_id
         )
 
-        flash('Access revoked successfully!')
+        flash('Access revoked successfully!', 'success')
 
     else:
 
-        flash('No permission found for this user.')
+        flash('No permission found for this user.', 'error')
 
     return redirect(url_for('documents'))
 
@@ -780,7 +795,6 @@ def admin():
         AuditLog.timestamp.desc()
     ).all()
 
-    # Verify audit hash chain
     previous_hash = 'GENESIS'
     integrity_valid = True
     verified_count = 0
@@ -858,7 +872,7 @@ def logout():
 
     session.clear()
 
-    flash('You have been logged out.')
+    flash('You have been logged out.', 'success')
 
     return redirect(url_for('login'))
 
