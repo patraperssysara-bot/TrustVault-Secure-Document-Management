@@ -1,4 +1,3 @@
-
 import os
 import hashlib
 import json
@@ -11,7 +10,11 @@ from flask import (
     url_for, session, flash, abort, send_file
 )
 
-from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.security import (
+    generate_password_hash,
+    check_password_hash
+)
+
 from werkzeug.utils import secure_filename
 from flask_wtf.csrf import CSRFProtect
 
@@ -23,6 +26,7 @@ from database import db, User, Document, Permission, AuditLog
 # --------------------------------------------------
 
 app = Flask(__name__)
+
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 
@@ -36,7 +40,8 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
 
 app.config['UPLOAD_FOLDER'] = os.path.join(
-    app.root_path, 'private_uploads'
+    app.root_path,
+    'private_uploads'
 )
 
 ALLOWED_EXTENSIONS = {
@@ -174,7 +179,8 @@ def allowed_file(filename):
 
     return (
         '.' in filename
-        and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+        and filename.rsplit('.', 1)[1].lower()
+        in ALLOWED_EXTENSIONS
     )
 
 
@@ -193,6 +199,7 @@ def home():
 
 # --------------------------------------------------
 # REGISTER
+# PUBLIC REGISTRATION ALWAYS CREATES VIEWER
 # --------------------------------------------------
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -200,16 +207,30 @@ def register():
 
     if request.method == 'POST':
 
-        username = request.form.get('username', '').strip()
-        password = request.form.get('password', '')
-        role = request.form.get('role', '').lower()
+        username = request.form.get(
+            'username', ''
+        ).strip()
+
+        password = request.form.get(
+            'password', ''
+        )
 
         if not username or not password:
-            flash('Please enter username and password.', 'error')
+
+            flash(
+                'Please enter username and password.',
+                'error'
+            )
+
             return redirect(url_for('register'))
 
-        if role not in ['owner', 'viewer']:
-            flash('Please select a valid role.', 'error')
+        if len(password) < 8:
+
+            flash(
+                'Password must be at least 8 characters.',
+                'error'
+            )
+
             return redirect(url_for('register'))
 
         existing_user = User.query.filter_by(
@@ -217,24 +238,52 @@ def register():
         ).first()
 
         if existing_user:
-            flash('Username already exists.', 'error')
+
+            flash(
+                'Username already exists.',
+                'error'
+            )
+
             return redirect(url_for('register'))
 
+        # Public registration creates Viewer accounts only.
         new_user = User(
             username=username,
             password=generate_password_hash(password),
-            role=role
+            role='viewer'
         )
 
-        db.session.add(new_user)
-        db.session.commit()
+        try:
 
-        flash(
-            'Registration successful. Please log in.',
-            'success'
-        )
+            db.session.add(new_user)
+            db.session.commit()
 
-        return redirect(url_for('login'))
+            record_activity(
+                new_user.id,
+                'New viewer account registered'
+            )
+
+            flash(
+                'Registration successful. Please log in.',
+                'success'
+            )
+
+            return redirect(url_for('login'))
+
+        except Exception:
+
+            db.session.rollback()
+
+            app.logger.exception(
+                'Registration failed'
+            )
+
+            flash(
+                'Registration failed. Please try again.',
+                'error'
+            )
+
+            return redirect(url_for('register'))
 
     return render_template('register.html')
 
@@ -245,19 +294,25 @@ def register():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    print("NEW LOGIN ROUTE IS RUNNING", flush=True)
 
     if request.method == 'POST':
 
-        username = request.form.get('username', '').strip()
-        password = request.form.get('password', '')
+        username = request.form.get(
+            'username', ''
+        ).strip()
+
+        password = request.form.get(
+            'password', ''
+        )
 
         user = User.query.filter_by(
             username=username
         ).first()
 
-        # CHECK LOGIN CREDENTIALS
-        if user and check_password_hash(user.password, password):
+        if user and check_password_hash(
+            user.password,
+            password
+        ):
 
             session.clear()
 
@@ -270,7 +325,6 @@ def login():
                 'User logged in'
             )
 
-            # SUCCESS MESSAGE
             flash(
                 f'Successfully logged in to your account, {user.username}!',
                 'success'
@@ -280,7 +334,6 @@ def login():
 
         else:
 
-            # RECORD FAILED LOGIN ATTEMPT
             failed_action = (
                 f'Failed login attempt for username: {username}'
             )
@@ -290,22 +343,23 @@ def login():
                 failed_action
             )
 
-            cutoff_time = datetime.utcnow() - timedelta(minutes=10)
+            cutoff_time = (
+                datetime.utcnow() - timedelta(minutes=10)
+            )
 
             failed_count = AuditLog.query.filter(
                 AuditLog.action == failed_action,
                 AuditLog.timestamp >= cutoff_time
             ).count()
 
-            # SUSPICIOUS ACTIVITY ALERT
             if failed_count == 3:
 
                 record_activity(
                     None,
-                    f'SUSPICIOUS ACTIVITY: 3 failed login attempts within 10 minutes for username: {username}'
+                    'SUSPICIOUS ACTIVITY: 3 failed login attempts '
+                    f'within 10 minutes for username: {username}'
                 )
 
-            # ERROR MESSAGE
             flash(
                 'Incorrect username or password. Please try again.',
                 'error'
@@ -322,13 +376,19 @@ def login():
 @login_required
 def dashboard():
 
-    user = db.session.get(User, session['user_id'])
+    user = db.session.get(
+        User,
+        session['user_id']
+    )
 
     if not user:
 
         session.clear()
 
-        flash('Your session has expired. Please log in again.', 'error')
+        flash(
+            'Your session has expired. Please log in again.',
+            'error'
+        )
 
         return redirect(url_for('login'))
 
@@ -351,10 +411,21 @@ def documents():
     user_id = session['user_id']
     role = session.get('role')
 
-    search = request.args.get('search', '').strip()
-    category = request.args.get('category', '').strip()
-    owner_name = request.args.get('owner', '').strip()
-    upload_date = request.args.get('date', '').strip()
+    search = request.args.get(
+        'search', ''
+    ).strip()
+
+    category = request.args.get(
+        'category', ''
+    ).strip()
+
+    owner_name = request.args.get(
+        'owner', ''
+    ).strip()
+
+    upload_date = request.args.get(
+        'date', ''
+    ).strip()
 
     if role == 'owner':
 
@@ -400,15 +471,22 @@ def documents():
 
         try:
 
-            datetime.strptime(upload_date, '%Y-%m-%d')
+            datetime.strptime(
+                upload_date,
+                '%Y-%m-%d'
+            )
 
             document_query = document_query.filter(
-                db.func.date(Document.upload_date) == upload_date
+                db.func.date(Document.upload_date)
+                == upload_date
             )
 
         except ValueError:
 
-            flash('Invalid date format. Please select a valid date.', 'error')
+            flash(
+                'Invalid date format. Please select a valid date.',
+                'error'
+            )
 
     user_documents = document_query.order_by(
         Document.id.desc()
@@ -458,24 +536,49 @@ def documents():
 def upload():
 
     uploaded_file = request.files.get('document')
-    category = request.form.get('category', '').strip()
+
+    category = request.form.get(
+        'category', ''
+    ).strip()
 
     if not uploaded_file or uploaded_file.filename == '':
-        flash('Please select a document.', 'error')
+
+        flash(
+            'Please select a document.',
+            'error'
+        )
+
         return redirect(url_for('documents'))
 
     if not allowed_file(uploaded_file.filename):
-        flash('File type not allowed.', 'error')
+
+        flash(
+            'File type not allowed.',
+            'error'
+        )
+
         return redirect(url_for('documents'))
 
     if not category:
-        flash('Please enter a document category.', 'error')
+
+        flash(
+            'Please enter a document category.',
+            'error'
+        )
+
         return redirect(url_for('documents'))
 
-    filename = secure_filename(uploaded_file.filename)
+    filename = secure_filename(
+        uploaded_file.filename
+    )
 
     if not filename:
-        flash('Invalid filename.', 'error')
+
+        flash(
+            'Invalid filename.',
+            'error'
+        )
+
         return redirect(url_for('documents'))
 
     extension = filename.rsplit('.', 1)[1].lower()
@@ -506,15 +609,23 @@ def upload():
             document.id
         )
 
-        flash('Document uploaded successfully!', 'success')
+        flash(
+            'Document uploaded successfully!',
+            'success'
+        )
 
     except Exception:
 
         db.session.rollback()
 
-        app.logger.exception('Document upload failed')
+        app.logger.exception(
+            'Document upload failed'
+        )
 
-        flash('Document upload failed. Please try again.', 'error')
+        flash(
+            'Document upload failed. Please try again.',
+            'error'
+        )
 
     return redirect(url_for('documents'))
 
@@ -529,7 +640,10 @@ def download(document_id):
 
     user_id = session['user_id']
 
-    document = db.session.get(Document, document_id)
+    document = db.session.get(
+        Document,
+        document_id
+    )
 
     if not document:
         abort(404)
@@ -557,7 +671,9 @@ def download(document_id):
 
         abort(403)
 
-    extension = document.filename.rsplit('.', 1)[-1].lower()
+    extension = document.filename.rsplit(
+        '.', 1
+    )[-1].lower()
 
     file_path = os.path.join(
         app.config['UPLOAD_FOLDER'],
@@ -590,7 +706,10 @@ def view_document(document_id):
 
     user_id = session['user_id']
 
-    document = db.session.get(Document, document_id)
+    document = db.session.get(
+        Document,
+        document_id
+    )
 
     if not document:
         abort(404)
@@ -618,7 +737,9 @@ def view_document(document_id):
 
         abort(403)
 
-    extension = document.filename.rsplit('.', 1)[-1].lower()
+    extension = document.filename.rsplit(
+        '.', 1
+    )[-1].lower()
 
     if extension != 'pdf':
 
@@ -670,17 +791,28 @@ def share_document(document_id):
 
     user_id = session['user_id']
 
-    document = db.session.get(Document, document_id)
+    document = db.session.get(
+        Document,
+        document_id
+    )
 
     if not document or document.owner_id != user_id:
         abort(403)
 
-    username = request.form.get('username', '').strip()
-    access_type = request.form.get('access_type', '').lower()
+    username = request.form.get(
+        'username', ''
+    ).strip()
+
+    access_type = request.form.get(
+        'access_type', ''
+    ).lower()
 
     if not username or access_type not in ['read', 'edit']:
 
-        flash('Please enter a valid username and permission.', 'error')
+        flash(
+            'Please enter a valid username and permission.',
+            'error'
+        )
 
         return redirect(url_for('documents'))
 
@@ -690,19 +822,28 @@ def share_document(document_id):
 
     if not target_user:
 
-        flash('User not found.', 'error')
+        flash(
+            'User not found.',
+            'error'
+        )
 
         return redirect(url_for('documents'))
 
     if target_user.role != 'viewer':
 
-        flash('You can share documents only with Viewer accounts.', 'error')
+        flash(
+            'You can share documents only with Viewer accounts.',
+            'error'
+        )
 
         return redirect(url_for('documents'))
 
     if target_user.id == user_id:
 
-        flash('You cannot share a document with yourself.', 'error')
+        flash(
+            'You cannot share a document with yourself.',
+            'error'
+        )
 
         return redirect(url_for('documents'))
 
@@ -733,7 +874,10 @@ def share_document(document_id):
         document_id
     )
 
-    flash('Document shared successfully!', 'success')
+    flash(
+        'Document shared successfully!',
+        'success'
+    )
 
     return redirect(url_for('documents'))
 
@@ -752,7 +896,10 @@ def revoke_access(document_id, target_user_id):
 
     user_id = session['user_id']
 
-    document = db.session.get(Document, document_id)
+    document = db.session.get(
+        Document,
+        document_id
+    )
 
     if not document or document.owner_id != user_id:
         abort(403)
@@ -773,11 +920,17 @@ def revoke_access(document_id, target_user_id):
             document_id
         )
 
-        flash('Access revoked successfully!', 'success')
+        flash(
+            'Access revoked successfully!',
+            'success'
+        )
 
     else:
 
-        flash('No permission found for this user.', 'error')
+        flash(
+            'No permission found for this user.',
+            'error'
+        )
 
     return redirect(url_for('documents'))
 
@@ -808,6 +961,7 @@ def admin():
     for log in hashed_logs:
 
         if log.previous_hash != previous_hash:
+
             integrity_valid = False
             break
 
@@ -817,6 +971,7 @@ def admin():
         )
 
         if calculated_hash != log.entry_hash:
+
             integrity_valid = False
             break
 
@@ -872,7 +1027,10 @@ def logout():
 
     session.clear()
 
-    flash('You have been logged out.', 'success')
+    flash(
+        'You have been logged out.',
+        'success'
+    )
 
     return redirect(url_for('login'))
 
@@ -893,44 +1051,63 @@ def forbidden(error):
 @app.errorhandler(404)
 def not_found(error):
 
-    return '404 - Document or page not found.', 404
+    return (
+        '404 - Document or page not found.',
+        404
+    )
 
 
 @app.errorhandler(413)
 def file_too_large(error):
 
-    return 'File too large. Maximum allowed size is 10 MB.', 413
+    return (
+        'File too large. Maximum allowed size is 10 MB.',
+        413
+    )
 
 
 # --------------------------------------------------
 # CREATE DATABASE AND START APPLICATION
 # --------------------------------------------------
+
 with app.app_context():
+
     db.create_all()
 
     admin_username = os.environ.get('ADMIN_USERNAME')
     admin_password = os.environ.get('ADMIN_PASSWORD')
 
     if admin_username and admin_password:
+
         existing_admin = User.query.filter_by(
             username=admin_username
         ).first()
 
         if existing_admin is None:
+
             admin = User(
                 username=admin_username,
                 password=generate_password_hash(admin_password),
                 role='admin'
             )
+
             db.session.add(admin)
             db.session.commit()
-            app.logger.info("Initial admin account created.")
+
+            app.logger.info(
+                "Initial admin account created."
+            )
 
         elif existing_admin.role != 'admin':
+
             app.logger.error(
                 "Admin bootstrap username already belongs to another role."
             )
 
+
+# --------------------------------------------------
+# RUN APPLICATION
+# --------------------------------------------------
 
 if __name__ == '__main__':
     app.run(debug=False)

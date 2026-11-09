@@ -1,20 +1,161 @@
-<form method="POST">
 
-    <input type="hidden" name="csrf_token"
-           value="{{ csrf_token() }}">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TrustVault - Register</title>
 
-    <input type="text" name="username"
-           placeholder="Enter Username" required>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f1f5f9;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
 
-    <input type="password" name="password"
-           placeholder="Enter Password" required>
+        .register-box {
+            background: white;
+            width: 350px;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
 
-    <select name="role" required>
-        <option value="">Select Role</option>
-        <option value="owner">Owner</option>
-        <option value="viewer">Viewer</option>
-    </select>
+        h2 {
+            text-align: center;
+            color: #1e293b;
+        }
 
-    <button type="submit">Register</button>
+        label {
+            display: block;
+            margin-top: 15px;
+            font-weight: bold;
+        }
 
-</form>
+        input, select {
+            width: 100%;
+            padding: 11px;
+            margin-top: 7px;
+            box-sizing: border-box;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 22px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        .message {
+            color: #dc2626;
+            text-align: center;
+        }
+
+        .login-link {
+            text-align: center;
+            margin-top: 18px;
+        }
+
+        #ownerProof {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="register-box">
+
+    <h2>Create Account</h2>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+            <p class="message">{{ message }}</p>
+        {% endfor %}
+    {% endwith %}
+
+    <form method="POST"
+          action="{{ url_for('register') }}"
+          enctype="multipart/form-data">
+
+        <input type="hidden" name="csrf_token"
+               value="{{ csrf_token() }}">
+
+        <label>Username</label>
+        <input type="text" name="username"
+               required maxlength="100">
+
+        <label>Password</label>
+        <input type="password" name="password"
+               required minlength="8">
+
+        <label>Select Your Role</label>
+        <select name="role" id="role"
+                onchange="toggleProof()" required>
+
+            <option value="">Select Role</option>
+            <option value="viewer">Viewer</option>
+            <option value="owner">Owner</option>
+
+        </select>
+
+        <div id="ownerProof">
+
+            <label>Upload ID Proof</label>
+
+            <input type="file"
+                   name="id_proof"
+                   id="id_proof"
+                   accept=".pdf,.png,.jpg,.jpeg">
+
+            <small>
+                Upload an organization ID card or another
+                suitable identification document.
+            </small>
+
+        </div>
+
+        <button type="submit">Register</button>
+
+    </form>
+
+    <div class="login-link">
+        Already have an account?
+        <a href="{{ url_for('login') }}">Login</a>
+    </div>
+
+</div>
+
+<script>
+    function toggleProof() {
+        const role = document.getElementById("role").value;
+        const proofSection = document.getElementById("ownerProof");
+        const proofInput = document.getElementById("id_proof");
+
+        if (role === "owner") {
+            proofSection.style.display = "block";
+            proofInput.required = true;
+        } else {
+            proofSection.style.display = "none";
+            proofInput.required = false;
+            proofInput.value = "";
+        }
+    }
+</script>
+
+</body>
+</html>
