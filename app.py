@@ -1,6 +1,8 @@
+
 import os
 import hashlib
 import json
+import uuid
 
 from functools import wraps
 from datetime import datetime, timedelta
@@ -18,7 +20,10 @@ from werkzeug.security import (
 from werkzeug.utils import secure_filename
 from flask_wtf.csrf import CSRFProtect
 
-from database import db, User, Document, Permission, AuditLog
+from database import (
+    db, User, Document, Permission,
+    AuditLog, OwnerIDProof
+)
 
 
 # --------------------------------------------------
@@ -44,11 +49,22 @@ app.config['UPLOAD_FOLDER'] = os.path.join(
     'private_uploads'
 )
 
+# Private folder for Owner ID proofs
+app.config['ID_PROOF_FOLDER'] = os.path.join(
+    app.root_path,
+    'private_id_proofs'
+)
+
 ALLOWED_EXTENSIONS = {
     'pdf', 'docx', 'txt', 'png', 'jpg', 'jpeg'
 }
 
+ALLOWED_ID_PROOF_EXTENSIONS = {
+    'pdf', 'png', 'jpg', 'jpeg'
+}
+
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs(app.config['ID_PROOF_FOLDER'], exist_ok=True)
 
 db.init_app(app)
 csrf = CSRFProtect(app)
@@ -199,7 +215,9 @@ def home():
 
 # --------------------------------------------------
 # REGISTER
-# PUBLIC REGISTRATION ALWAYS CREATES VIEWER
+# VIEWER: NORMAL REGISTRATION
+# OWNER: ID PROOF REQUIRED
+# NO ADMIN APPROVAL
 # --------------------------------------------------
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -214,6 +232,10 @@ def register():
         password = request.form.get(
             'password', ''
         )
+
+        selected_role = request.form.get(
+            'role', ''
+        ).strip().lower()
 
         if not username or not password:
 
@@ -233,6 +255,15 @@ def register():
 
             return redirect(url_for('register'))
 
+        if selected_role not in ['viewer', 'owner']:
+
+            flash(
+                'Please select a valid account role.',
+                'error'
+            )
+
+            return redirect(url_for('register'))
+
         existing_user = User.query.filter_by(
             username=username
         ).first()
@@ -246,21 +277,99 @@ def register():
 
             return redirect(url_for('register'))
 
-        # Public registration creates Viewer accounts only.
-        new_user = User(
-            username=username,
-            password=generate_password_hash(password),
-            role='viewer'
-        )
+        proof_file = None
+        proof_extension = None
+        saved_proof_path = None
+
+        # ID proof is compulsory only for Owner registration.
+        if selected_role == 'owner':
+
+            proof_file = request.files.get('id_proof')
+
+            if not proof_file or not proof_file.filename:
+
+                flash(
+                    'Owner registration requires an ID proof.',
+                    'error'
+                )
+
+                return redirect(url_for('register'))
+
+            original_name = secure_filename(
+                proof_file.filename
+            )
+
+            if not original_name or '.' not in original_name:
+
+                flash(
+                    'Please upload a valid ID proof.',
+                    'error'
+                )
+
+                return redirect(url_for('register'))
+
+            proof_extension = original_name.rsplit(
+                '.', 1
+            )[1].lower()
+
+            if proof_extension not in ALLOWED_ID_PROOF_EXTENSIONS:
+
+                flash(
+                    'ID proof must be PDF, PNG, JPG, or JPEG.',
+                    'error'
+                )
+
+                return redirect(url_for('register'))
 
         try:
 
+            new_user = User(
+                username=username,
+                password=generate_password_hash(password),
+                role=selected_role
+            )
+
             db.session.add(new_user)
+            db.session.flush()
+
+            # Save Owner ID proof with a unique filename.
+            if selected_role == 'owner':
+
+                proof_filename = (
+                    f'{uuid.uuid4().hex}.{proof_extension}'
+                )
+
+                saved_proof_path = os.path.join(
+                    app.config['ID_PROOF_FOLDER'],
+                    proof_filename
+                )
+
+                proof_file.save(saved_proof_path)
+
+                proof_record = OwnerIDProof(
+                    user_id=new_user.id,
+                    filename=proof_filename
+                )
+
+                db.session.add(proof_record)
+
             db.session.commit()
+
+            if selected_role == 'owner':
+
+                registration_action = (
+                    'New owner account registered with ID proof'
+                )
+
+            else:
+
+                registration_action = (
+                    'New viewer account registered'
+                )
 
             record_activity(
                 new_user.id,
-                'New viewer account registered'
+                registration_action
             )
 
             flash(
@@ -273,6 +382,18 @@ def register():
         except Exception:
 
             db.session.rollback()
+
+            # Remove proof if database registration fails.
+            if saved_proof_path and os.path.isfile(saved_proof_path):
+
+                try:
+                    os.remove(saved_proof_path)
+
+                except OSError:
+
+                    app.logger.exception(
+                        'Could not remove incomplete ID proof upload'
+                    )
 
             app.logger.exception(
                 'Registration failed'
