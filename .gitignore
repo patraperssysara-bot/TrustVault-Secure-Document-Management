@@ -16,9 +16,9 @@ instance/
 *.db
 *.sqlite
 *.sqlite3
-
 # Uploaded private documents
 private_uploads/
+private_id_proofs/
 
 # IDE files
 .vscode/
